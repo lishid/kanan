@@ -22,7 +22,7 @@ from pathlib import Path
 from getpass import getpass
 
 
-def get_login_passport():
+def get_login_passport(creds):
     # Get something unique (not important as far as I can tell)
     cmd_result = run(['wmic', 'csproduct', 'get', 'uuid'], stdout=PIPE)
     cmd_result_str = StringIO(cmd_result.stdout.decode('utf-8'))
@@ -33,9 +33,13 @@ def get_login_passport():
     # Grab UUID
     uuid = cmd_result_str.readline().strip()
 
+    username = creds[0]
+    password = creds[1]
     # Ask for username/password.
-    username = input("Username: ")
-    password = getpass("Password: ")
+    if username == '':
+        username = input("Username: ")
+    if password == '':
+        password = getpass("Password: ")
 
     # Immediately convert it.
     password = hexlify(sha512(bytes(password, 'utf-8')).digest()).decode('utf-8')
@@ -110,6 +114,9 @@ usage: python kanan.py <options> [scripts]
 
     -m --morrighan
         kanan will attempt to start mabi with Morrighan for you.
+
+    -c "email" -c "email:password" --creds "email:password"
+        Use email/password supplied via command line. Only works when using -s
     """)
 
 
@@ -193,14 +200,15 @@ class KananApp:
         # Handle command line arguments.
         try:
             opts, args = getopt.getopt(sys.argv[1:],
-                                       'hdp:tvasm',
+                                       'hdp:tvasmc:',
                                        ['help', 'debug', 'pid=', 'test',
                                         'verbose', 'all', 'start',
-                                        'morrighan'])
+                                        'morrighan', 'creds='])
         except getopt.GetoptError as err:
             print(err)
             usage()
             sys.exit(2)
+        creds = ['', '']
         for opt, arg in opts:
             if opt in ('-h', '--help'):
                 usage()
@@ -219,9 +227,17 @@ class KananApp:
                 self.auto_start = True
             elif opt in ('-m', '--morrighan'):
                 self.morrighan = True
+            elif opt in ('-c', '--creds'):
+                sep_index = arg.find(':')
+                if sep_index == -1:
+                    creds[0] = arg
+                else:
+                    creds[0] = arg[0:sep_index]
+                    creds[1] = arg[sep_index+1:]
             else:
                 assert False, "Unhandled option"
         self.scripts_to_load = args
+        return creds
 
     def _attach(self):
         # Attach to Mabinogi.
@@ -364,12 +380,12 @@ class KananApp:
                 return True
         return False
 
-    def _start_mabi(self):
+    def _start_mabi(self, creds):
         # Starts mabinogi if it can. Hopefully this can be improved so it
         # doesn't rely on the config files in the future.
         mabidir = Path(self.get_option('AutoStart', 'directory'))
         args = self.get_option('AutoStart', 'args')
-        passport = get_login_passport()
+        passport = get_login_passport(creds)
         args = args + ' /P:' + passport
         if not mabidir.exists():
             print("Couldn't find Client.exe in " + str(mabidir))
@@ -398,10 +414,11 @@ class KananApp:
 
     def run(self):
         """Runs kanan."""
-        self._parse_command_line()
+        creds = self._parse_command_line()
         print("Kanan's Mabinogi Mod")
         if self.auto_start:
-            self.pid = self._start_mabi()
+            self.pid = self._start_mabi(creds)
+        creds = None
         while True:
             print("Waiting for Client.exe...")
             self._attach()
