@@ -9,7 +9,7 @@ if %errorlevel% neq 0 (
     exit
 )
 cls
-python ./kanan.py
+python ./kanan.py %*
 if %errorlevel% neq 0 (
     pause
     exit

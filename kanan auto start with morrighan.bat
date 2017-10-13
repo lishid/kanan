@@ -1,16 +1,2 @@
 @echo off
-@setlocal enableextensions
-@cd /d "%~dp0"
-
-echo Checking and installing dependencies...
-pip -q install frida==9.0.7 toml psutil
-if %errorlevel% neq 0 (
-    pause
-    exit
-)
-cls
-python ./kanan.py -s -m
-if %errorlevel% neq 0 (
-    pause
-    exit
-)
+kanan.bat -s -m
